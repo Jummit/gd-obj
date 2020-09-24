@@ -1,30 +1,27 @@
 extends Node
 
-# Obj parser made by Ezcha
-# Created on 7/11/2018
-# https://ezcha.net
-# https://github.com/Ezcha/gd-obj
-# MIT License
-# https://github.com/Ezcha/gd-obj/blob/master/LICENSE
+"""
+A utility to parse .obj object files
+
+Loads the material if the path to the .mtl file is specified.
+"""
 
 static func parse_obj(obj_path : String, mtl_path := "") -> Mesh:
 	var file := File.new()
 	file.open(obj_path, File.READ)
 	var obj := file.get_as_text()
-	var mats : Dictionary
+	var materials : Dictionary
 	if mtl_path:
-		mats = _parse_mtl_file(mtl_path)
+		materials = _parse_mtl_file(mtl_path)
 	
-	# Setup
 	var mesh := Mesh.new()
 	var vertices := PoolVector3Array()
 	var normals := PoolVector3Array()
 	var uvs := PoolVector2Array()
 	var faces := {}
 	
-	var mat_name : String
+	var material_name : String
 	
-	# Parse
 	var lines := obj.split("\n", false)
 	for line in lines:
 		var parts : PoolStringArray = line.split(" ", false)
@@ -37,9 +34,9 @@ static func parse_obj(obj_path : String, mtl_path := "") -> Mesh:
 				uvs.append(Vector2(float(parts[1]), 1.0 - float(parts[2])))
 			"usemtl":
 				# Material group
-				mat_name = parts[1]
-				if not mat_name in faces:
-					faces[mat_name] = []
+				material_name = parts[1]
+				if not material_name in faces:
+					faces[material_name] = []
 			"f":
 				# Face
 				if parts.size() == 4:
@@ -51,7 +48,7 @@ static func parse_obj(obj_path : String, mtl_path := "") -> Mesh:
 						face.v.append(int(vertices_index[0]) - 1)
 						face.vt.append(int(vertices_index[1]) - 1)
 						face.vn.append(int(vertices_index[2]) - 1)
-					faces[mat_name].append(face)
+					faces[material_name].append(face)
 				elif parts.size() > 4:
 					# Triangulate
 					var points := []
@@ -84,14 +81,13 @@ static func parse_obj(obj_path : String, mtl_path := "") -> Mesh:
 						face.vn.append(point1[2])
 						face.vn.append(point2[2])
 						
-						faces[mat_name].append(face)
+						faces[material_name].append(face)
 	
 	for material_group in faces.keys():
-		# Mesh Assembler
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		if mats:
-			st.set_material(mats[material_group])
+		if materials:
+			st.set_material(materials[material_group])
 		
 		for face in faces[material_group]:
 			if face.v.size() != 3:
@@ -121,38 +117,36 @@ static func parse_obj(obj_path : String, mtl_path := "") -> Mesh:
 	return mesh
 
 
-# Returns an array of materials from a MTL file
 static func _parse_mtl_file(path : String) -> Dictionary:
 	var file := File.new()
 	file.open(path, File.READ)
 	var obj := file.get_as_text()
 
-	var mats := {}
-	var currentMat
+	var materials := {}
+	var current_material : SpatialMaterial
 	
 	var lines := obj.split("\n", false)
 	for line in lines:
-		var parts : String = line.split(" ", false)
+		var parts : PoolStringArray = line.split(" ", false)
 		match parts[0]:
 			"newmtl":
-				# Create a new material
-				currentMat = SpatialMaterial.new()
-				mats[parts[1]] = currentMat
+				current_material = SpatialMaterial.new()
+				materials[parts[1]] = current_material
 			"Kd":
-				currentMat.albedo_color = Color(float(parts[1]), float(parts[2]), float(parts[3]))
+				current_material.albedo_color = Color(float(parts[1]), float(parts[2]), float(parts[3]))
 			"map_Kd":
-				currentMat.albedo_texture = _get_texture(path, parts[1])
+				current_material.albedo_texture = _get_texture(path, parts[1])
 			"map_Ks":
-				currentMat.albedo_texture = _get_texture(path, parts[1])
+				current_material.albedo_texture = _get_texture(path, parts[1])
 			"map_Ka":
-				currentMat.albedo_texture = _get_texture(path, parts[1])
-	return mats
+				current_material.albedo_texture = _get_texture(path, parts[1])
+	return materials
 
 
-static func _get_texture(mtl_filepath : String, tex_filename : String) -> ImageTexture:
-	var texfilepath := mtl_filepath.get_base_dir().plus_file(tex_filename)
+static func _get_texture(mtl_file : String, texture_file : String) -> ImageTexture:
+	var texture_path := mtl_file.get_base_dir().plus_file(texture_file)
 	var image := Image.new()
-	image.load(texfilepath)
+	image.load(texture_path)
 	var texture := ImageTexture.new()
 	texture.create_from_image(image)
 	return texture
