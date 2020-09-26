@@ -15,16 +15,15 @@ static func parse_obj(obj_path : String, mtl_path := "") -> Mesh:
 		materials = _parse_mtl_file(mtl_path)
 	
 	var mesh := Mesh.new()
-	var vertices := PoolVector3Array()
-	var normals := PoolVector3Array()
-	var uvs := PoolVector2Array()
+	var vertices := []
+	var normals := []
+	var uvs := []
 	var faces := {}
-	
 	var material_name : String
 	
-	var lines := obj.split("\n", false)
+	var lines : Array = obj.split("\n", false)
 	for line in lines:
-		var parts : PoolStringArray = line.split(" ", false)
+		var parts : Array = line.split(" ", false)
 		match parts[0]:
 			"v":
 				vertices.append(Vector3(float(parts[1]), float(parts[2]), float(parts[3])))
