@@ -6,6 +6,13 @@ A utility to parse .obj object files
 Loads the material if the path to the .mtl file is specified.
 """
 
+const ObjParserInteractive = preload("obj_parser_interactive.gd")
+
+static func parse_obj_interactive(obj_path : String, mtl_path := "") -> ObjParserInteractive:
+	return ObjParserInteractive.new(obj_path,
+			{} if not mtl_path else _parse_mtl_file(mtl_path))
+
+
 static func parse_obj(obj_path : String, mtl_path := "") -> Mesh:
 	var file := File.new()
 	file.open(obj_path, File.READ)
