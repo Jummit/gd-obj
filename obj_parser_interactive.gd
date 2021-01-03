@@ -1,3 +1,10 @@
+"""
+An interactive version of `OBJParser`
+
+This is simmilar to `ResourceInteractiveLoader` and can be used to make
+progress bars for loading large obj files.
+"""
+
 var mesh := Mesh.new()
 var vertices := []
 var normals := []
