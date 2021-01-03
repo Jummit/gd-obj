@@ -6,6 +6,7 @@ var faces := {}
 var material_name : String
 var lines : Array
 var materials : Dictionary
+var path : String
 
 var current_line := 0
 var current_face := 0
@@ -14,14 +15,11 @@ var st : SurfaceTool
 var stage := 0
 
 func _init(obj_path : String, _materials : Dictionary) -> void:
+	path = obj_path
 	var file := File.new()
 	file.open(obj_path, File.READ)
 	lines = file.get_as_text().split("\n", false)
 	materials = _materials
-
-
-func get_stage() -> int:
-	return stage
 
 
 func get_stage_count() -> int:
@@ -31,7 +29,7 @@ func get_stage_count() -> int:
 func poll() -> Mesh:
 	stage += 1
 	if current_line < lines.size():
-		parse_line(lines[current_line])
+		_parse_line(lines[current_line])
 		current_line += 1
 		return null
 	elif not st:
@@ -44,7 +42,7 @@ func poll() -> Mesh:
 	if current_material_group < faces.keys().size():
 		var material_group : String = faces.keys()[current_material_group]
 		if current_face < faces[material_group].size():
-			apply_face(faces[material_group][current_face])
+			_apply_face(faces[material_group][current_face])
 			current_face += 1
 			return null
 		else:
@@ -56,10 +54,15 @@ func poll() -> Mesh:
 				st.set_material(materials[material_group])
 			current_face = 0
 			return null
-	print("Guessed %s on a %s line file, took %s" % [get_stage_count(), lines.size(), stage])
+	mesh.resource_path = path
 	return mesh
 
-func apply_face(face):
+
+func get_stage() -> int:
+	return stage
+
+
+func _apply_face(face):
 	if face.v.size() != 3:
 		return
 	
@@ -84,7 +87,7 @@ func apply_face(face):
 	st.add_triangle_fan(fan_v, fan_vt, [], [], fan_vn, [])
 
 
-func parse_line(line):
+func _parse_line(line):
 	var parts : Array = line.split(" ", false)
 	match parts[0]:
 		"v":

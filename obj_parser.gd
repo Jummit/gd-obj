@@ -120,6 +120,8 @@ static func parse_obj(obj_path : String, mtl_path := "") -> Mesh:
 			st.add_triangle_fan(fan_v, fan_vt, [], [], fan_vn, [])
 		mesh = st.commit(mesh)
 	
+	mesh.resource_path = obj_path
+	
 	return mesh
 
 
