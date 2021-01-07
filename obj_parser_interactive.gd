@@ -1,155 +1,122 @@
-"""
-An interactive version of `OBJParser`
+extends Node
 
-This is simmilar to `ResourceInteractiveLoader` and can be used to make
-progress bars for loading large obj files.
-"""
-
-var mesh := Mesh.new()
-var vertices := []
-var normals := []
-var uvs := []
-var faces := {}
-var material_name : String
-var lines : Array
-var materials : Dictionary
 var path : String
+var file := File.new()
 
-var current_line := 0
-var current_face := 0
-var current_material_group := 0
-var st : SurfaceTool
+var mesh := ArrayMesh.new()
+
+var vertices := PoolVector3Array()
+var normals := PoolVector3Array()
+var uvs := PoolVector2Array()
+var materials := {}
+
+var surface_tool := SurfaceTool.new()
+
+var surface_tool_has_vertices := false
+
+var current_material_library : String
+var current_material : String
+var current_group : String
+
 var stage := 0
 
-func _init(obj_path : String, _materials : Dictionary) -> void:
-	path = obj_path
-	var file := File.new()
-	file.open(obj_path, File.READ)
-	lines = file.get_as_text().split("\n", false)
-	materials = _materials
+const MtlParser = preload("mtl_parser.gd")
+
+func _init(_path : String) -> void:
+	path = _path
+	file.open(path, File.READ)
+	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 
 
 func get_stage_count() -> int:
-	return lines.size() * 2
+	return file.get_as_text().count("\n")
 
 
 func poll() -> Mesh:
-	stage += 1
-	if current_line < lines.size():
-		_parse_line(lines[current_line])
-		current_line += 1
-		return null
-	elif not st:
-		st = SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		if materials:
-			st.set_material(materials[faces.keys()[current_material_group]])
-		return null
+	var line := file.get_line().strip_edges()
+	var split := line.split(" ", false)
+	var element := split[0] if split.size() else ""
+	match element:
+		"v":
+			vertices.append(Vector3(float(split[1]), float(split[2]),
+					float(split[3])))
+		"vn":
+			normals.append(Vector3(float(split[1]), float(split[2]),
+					float(split[3])))
+		"vt":
+			uvs.append(Vector2(float(split[1]), 1.0 - float(split[2])))
+		"f":
+			surface_tool_has_vertices = true
+			var face := []
+			face.resize(3)
+			face[0] = split[1].split("/")
+			face[1] = split[2].split("/")
+			for i in range(2, split.size() - 1):
+				face[2] = split[i + 1].split("/")
+				for j in 3:
+					var index : int = j
+					if index < 2:
+						index = 1 ^ index
+					if face[index].size() == 3:
+						var normal := int(face[index][2]) - 1
+						if normal < 0:
+							normal += normals.size() + 1
+						surface_tool.add_normal(normals[normal])
+					
+					if face[index].size() >= 2 and face[index][1]:
+						var uv := int(face[index][1]) - 1
+						if uv < 0:
+							uv += uvs.size() + 1
+						surface_tool.add_uv(uvs[uv])
+					
+					var vertex := int(face[index][0]) - 1
+					if vertex < 0:
+						vertex += vertices.size() + 1
+					surface_tool.add_vertex(vertices[vertex])
+				face[1] = face[2]
+		"s":
+			surface_tool.add_smooth_group(not split[1] == "off")
+		"mtllib":
+			current_material_library = split[1]
+			if not current_material_library in materials:
+				var library := MtlParser.parse_material_library(
+						path.get_base_dir().plus_file(
+						current_material_library))
+				if library:
+					materials[current_material_library] = library
+		"usemtl":
+			current_material = split[1]
+		"g":
+			current_group = split[1]
+	if file.eof_reached() or ((element == "usemtl" or element == "o")\
+			and surface_tool_has_vertices):
+		if normals.size():
+			surface_tool.generate_normals()
+		if uvs.size():
+			surface_tool.generate_tangents()
+		surface_tool.index()
+		if current_material_library in materials\
+				and current_material in materials[current_material_library]:
+			surface_tool.set_material(
+					materials[current_material_library][current_material])
+		mesh = surface_tool.commit(mesh)
+		if current_material:
+			mesh.surface_set_name(mesh.get_surface_count() - 1,
+					current_material.get_basename())
+		elif current_group:
+			mesh.surface_set_name(mesh.get_surface_count() - 1,
+					current_group)
+		surface_tool.clear()
+		surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+		surface_tool_has_vertices = false
 	
-	if current_material_group < faces.keys().size():
-		var material_group : String = faces.keys()[current_material_group]
-		if current_face < faces[material_group].size():
-			_apply_face(faces[material_group][current_face])
-			current_face += 1
-			return null
-		else:
-			current_material_group += 1
-			mesh = st.commit(mesh)
-			st = SurfaceTool.new()
-			st.begin(Mesh.PRIMITIVE_TRIANGLES)
-			if materials:
-				st.set_material(materials[material_group])
-			current_face = 0
-			return null
-	mesh.resource_path = path
-	return mesh
+	stage += 1
+	
+	if file.eof_reached():
+		return mesh
+	else:
+		return null
 
 
 func get_stage() -> int:
 	return stage
-
-
-func _apply_face(face):
-	if face.v.size() != 3:
-		return
-	
-	# Vertices
-	var fan_v := PoolVector3Array()
-	fan_v.append(vertices[face.v[0]])
-	fan_v.append(vertices[face.v[2]])
-	fan_v.append(vertices[face.v[1]])
-	
-	# Normals
-	var fan_vn := PoolVector3Array()
-	fan_vn.append(normals[face.vn[0]])
-	fan_vn.append(normals[face.vn[2]])
-	fan_vn.append(normals[face.vn[1]])
-	
-	# Textures
-	var fan_vt := PoolVector2Array()
-	fan_vt.append(uvs[face.vt[0]])
-	fan_vt.append(uvs[face.vt[2]])
-	fan_vt.append(uvs[face.vt[1]])
-	
-	st.add_triangle_fan(fan_v, fan_vt, [], [], fan_vn, [])
-
-
-func _parse_line(line):
-	var parts : Array = line.split(" ", false)
-	match parts[0]:
-		"v":
-			vertices.append(Vector3(float(parts[1]), float(parts[2]), float(parts[3])))
-		"vn":
-			normals.append(Vector3(float(parts[1]), float(parts[2]), float(parts[3])))
-		"vt":
-			uvs.append(Vector2(float(parts[1]), 1.0 - float(parts[2])))
-		"usemtl":
-			# Material group
-			material_name = parts[1]
-			if not material_name in faces:
-				faces[material_name] = []
-		"f":
-			# Face
-			if parts.size() == 4:
-				var face = {v = [], vt = [], vn = []}
-				for map in parts:
-					var vertices_index = map.split("/")
-					if vertices_index[0] == "f":
-						continue
-					face.v.append(int(vertices_index[0]) - 1)
-					face.vt.append(int(vertices_index[1]) - 1)
-					face.vn.append(int(vertices_index[2]) - 1)
-				faces[material_name].append(face)
-			elif parts.size() > 4:
-				# Triangulate
-				var points := []
-				for map in parts:
-					var vertices_index = map.split("/")
-					if vertices_index[0] == "f":
-						continue
-					var point := []
-					point.append(int(vertices_index[0]) - 1)
-					point.append(int(vertices_index[1]) - 1)
-					point.append(int(vertices_index[2]) - 1)
-					points.append(point)
-				for i in points.size():
-					if i == 0:
-						continue
-					var face = {v = [], vt = [], vn = []}
-					var point0 : Array = points[0]
-					var point1 : Array = points[i - 1]
-					var point2 : Array = points[i]
-					
-					face.v.append(point0[0])
-					face.v.append(point1[0])
-					face.v.append(point2[0])
-					
-					face.vt.append(point0[1])
-					face.vt.append(point1[1])
-					face.vt.append(point2[1])
-					
-					face.vn.append(point0[2])
-					face.vn.append(point1[2])
-					face.vn.append(point2[2])
-					
-					faces[material_name].append(face)
