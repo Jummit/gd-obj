@@ -18,8 +18,6 @@ var current_material_library : String
 var current_material : String
 var current_group : String
 
-var stage := 0
-
 const MtlParser = preload("mtl_parser.gd")
 
 func _init(_path : String) -> void:
@@ -29,7 +27,7 @@ func _init(_path : String) -> void:
 
 
 func get_stage_count() -> int:
-	return file.get_as_text().count("\n")
+	return file.get_len()
 
 
 func poll() -> Mesh:
@@ -110,8 +108,6 @@ func poll() -> Mesh:
 		surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 		surface_tool_has_vertices = false
 	
-	stage += 1
-	
 	if file.eof_reached():
 		return mesh
 	else:
@@ -119,4 +115,4 @@ func poll() -> Mesh:
 
 
 func get_stage() -> int:
-	return stage
+	return file.get_position()
