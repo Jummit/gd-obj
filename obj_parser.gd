@@ -76,7 +76,7 @@ static func parse_obj(path : String) -> Mesh:
 			"mtllib":
 				current_material_library = split[1]
 				if not current_material_library in materials:
-					var library := _parse_material_library(
+					var library := MtlParser.parse_material_library(
 							path.get_base_dir().plus_file(
 							current_material_library))
 					if library:
