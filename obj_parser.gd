@@ -12,23 +12,25 @@ static func parse_obj(path : String) -> Mesh:
 	var error := file.open(path, File.READ)
 	if error != OK:
 		return null
-
+	
 	var mesh := ArrayMesh.new()
-
+	mesh.resource_path = path
+	mesh.resource_name = path.get_file().trim_suffix(".obj")
+	
 	var vertices := PoolVector3Array()
 	var normals := PoolVector3Array()
 	var uvs := PoolVector2Array()
 	var materials := {}
-
+	
 	var surface_tool := SurfaceTool.new()
 	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	
 	var surface_tool_has_vertices := false
-
+	
 	var current_material_library : String
 	var current_material : String
 	var current_group : String
-
+	
 	while true:
 		var line := file.get_line().strip_edges()
 		var split := line.split(" ", false)

@@ -24,6 +24,8 @@ func _init(_path : String) -> void:
 	path = _path
 	file.open(path, File.READ)
 	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	mesh.resource_path = path
+	mesh.resource_name = path.get_file().trim_suffix(".obj")
 
 
 func get_stage_count() -> int:
